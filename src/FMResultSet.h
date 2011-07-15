@@ -17,21 +17,24 @@
 @class FMStatement;
 
 @interface FMResultSet : NSObject {
-    FMDatabase          *_parentDB;
-    FMStatement         *_statement;
+    FMDatabase *parentDB;
+    FMStatement *statement;
     
-    NSString            *_query;
-    NSMutableDictionary *_columnNameToIndexMap;
-    BOOL                _columnNamesSetup;
+    NSString *query;
+    NSMutableDictionary *columnNameToIndexMap;
+    BOOL columnNamesSetup;
 }
 
-@property (retain) NSString *query;
-@property (retain) NSMutableDictionary *columnNameToIndexMap;
-@property (retain) FMStatement *statement;
 
 + (id)resultSetWithStatement:(FMStatement *)statement usingParentDatabase:(FMDatabase*)aDB;
 
 - (void)close;
+
+- (NSString *)query;
+- (void)setQuery:(NSString *)value;
+
+- (FMStatement *)statement;
+- (void)setStatement:(FMStatement *)value;
 
 - (void)setParentDB:(FMDatabase *)newDb;
 
