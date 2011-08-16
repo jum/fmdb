@@ -11,7 +11,18 @@ int main (int argc, const char * argv[]) {
     NSFileManager *fileManager = [NSFileManager defaultManager];
     [fileManager removeItemAtPath:@"/tmp/tmp.db" error:nil];
     
-    FMDatabase* db = [FMDatabase databaseWithPath:@"/tmp/tmp.db"];
+    FMDatabase *db = [FMDatabase databaseWithPath:@"/tmp/tmp.db"];
+    
+    NSLog(@"Is SQLite compiled with it's thread safe options turned on? %@!", [FMDatabase isThreadSafe] ? @"Yes" : @"No");
+    
+    {
+		// -------------------------------------------------------------------------------
+		// Un-opened database check.		
+		FMDBQuickCheck([db executeQuery:@"select * from table"] == nil);
+		NSLog(@"%d: %@", [db lastErrorCode], [db lastErrorMessage]);
+	}
+    
+    
     if (![db open]) {
         NSLog(@"Could not open db.");
         [pool release];
