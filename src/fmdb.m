@@ -117,6 +117,7 @@ int main (int argc, const char * argv[]) {
     // the autorelease pool closes, so sqlite will complain about it.
     [rs close];  
     
+    FMDBQuickCheck(![db hasOpenResultSets]);
     
     [db executeUpdate:@"create table ull (a integer)"];
     
@@ -130,6 +131,32 @@ int main (int argc, const char * argv[]) {
         FMDBQuickCheck(a == ULLONG_MAX);
         FMDBQuickCheck(b == ULLONG_MAX);
     }
+    
+    
+    // check case sensitive result dictionary.
+    [db executeUpdate:@"create table cs (aRowName integer, bRowName text)"];
+    FMDBQuickCheck(![db hadError]);
+    [db executeUpdate:@"insert into cs (aRowName, bRowName) values (?, ?)" , [NSNumber numberWithBool:1], @"hello"];
+    FMDBQuickCheck(![db hadError]);
+    
+    rs = [db executeQuery:@"select * from cs"];
+    while ([rs next]) {
+        NSDictionary *d = [rs resultDictionary];
+        
+        FMDBQuickCheck([d objectForKey:@"aRowName"]);
+        FMDBQuickCheck(![d objectForKey:@"arowname"]);
+        FMDBQuickCheck([d objectForKey:@"bRowName"]);
+        FMDBQuickCheck(![d objectForKey:@"browname"]);
+    }
+    
+    
+    // check funky table names + getTableSchema
+    [db executeUpdate:@"create table '234 fds' (foo text)"];
+    FMDBQuickCheck(![db hadError]);
+    rs = [db getTableSchema:@"234 fds"];
+    FMDBQuickCheck([rs next]);
+    [rs close];
+    
     
     
     // ----------------------------------------------------------------------------------------
@@ -750,6 +777,8 @@ int main (int argc, const char * argv[]) {
             while ([rs next]) {
                 rowCount++;
             }
+            
+            FMDBQuickCheck(![db hasOpenResultSets]);
             
             NSLog(@"after rollback, rowCount is %d (should be 2)", rowCount);
             
