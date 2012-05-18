@@ -7,11 +7,13 @@
 #define FMDBQuickCheck(SomeBool) { if (!(SomeBool)) { NSLog(@"Failure on line %d", __LINE__); abort(); } }
 
 void testPool(NSString *dbPath);
+void FMDBReportABugFunction();
 
 int main (int argc, const char * argv[]) {
     
 @autoreleasepool {
-        
+    
+    FMDBReportABugFunction();
     
     NSString *dbPath = @"/tmp/tmp.db";
     
@@ -453,6 +455,17 @@ int main (int argc, const char * argv[]) {
     
     
     {
+        
+        [db executeUpdate:@"create table utest (a text)"];
+        [db executeUpdate:@"insert into utest values (?)", @"/übertest"];
+        
+        rs = [db executeQuery:@"select * from utest where a = ?", @"/übertest"];
+        FMDBQuickCheck([rs next]);
+        [rs close];
+    }   
+    
+    
+    {
         [db executeUpdate:@"create table testOneHundredTwelvePointTwo (a text, b integer)"];
         [db executeUpdate:@"insert into testOneHundredTwelvePointTwo values (?, ?)" withArgumentsInArray:[NSArray arrayWithObjects:@"one", [NSNumber numberWithInteger:2], nil]];
         [db executeUpdate:@"insert into testOneHundredTwelvePointTwo values (?, ?)" withArgumentsInArray:[NSArray arrayWithObjects:@"one", [NSNumber numberWithInteger:3], nil]];
@@ -532,7 +545,7 @@ int main (int argc, const char * argv[]) {
         FMDBQuickCheck([db executeUpdate:@"create table t5 (a text, b int, c blob, d text, e text)"]);
         FMDBQuickCheck(([db executeUpdateWithFormat:@"insert into t5 values (%s, %d, %@, %c, %lld)", "text", 42, @"BLOB", 'd', 12345678901234]));
         
-        rs = [db executeQueryWithFormat:@"select * from t5 where a = %s", "text"];
+        rs = [db executeQueryWithFormat:@"select * from t5 where a = %s and a = %@ and b = %d", "text", @"text", 42];
         FMDBQuickCheck((rs != nil));
         
         [rs next];
@@ -1161,3 +1174,55 @@ void testPool(NSString *dbPath) {
 #endif
 
 }
+
+
+/*
+ What is this function for?  Think of it as a template which a developer can use
+ to report bugs.
+ 
+ If you have a bug, make it reproduce in this function and then let the
+ developer(s) know either via the github bug reporter or the mailing list.
+ */
+
+void FMDBReportABugFunction() {
+    
+    NSString *dbPath = @"/tmp/bugreportsample.db";
+    
+    // delete the old db if it exists
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    [fileManager removeItemAtPath:dbPath error:nil];
+    
+    FMDatabaseQueue *queue = [FMDatabaseQueue databaseQueueWithPath:dbPath];
+    
+    [queue inDatabase:^(FMDatabase *db) {
+        
+        /*
+         Change the contents of this block to suit your needs.
+         */
+        
+        BOOL worked = [db executeUpdate:@"create table test (a text, b text, c integer, d double, e double)"];
+        FMDBQuickCheck(worked);
+        
+        
+        worked = [db executeUpdate:@"insert into test values ('a', 'b', 1, 2.2, 2.3)"];
+        FMDBQuickCheck(worked);
+        
+        FMResultSet *rs = [db executeQuery:@"select * from test"];
+        FMDBQuickCheck([rs next]);
+        [rs close];
+        
+    }];
+    
+    
+    [queue close];
+    
+    
+    // uncomment the following line if you don't want to run through all the other tests.
+    //exit(0);
+    
+}
+
+
+
+
+
