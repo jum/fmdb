@@ -45,6 +45,9 @@
 	#endif
 #endif
 
+#if !__has_feature(objc_instancetype)
+    #define instancetype id
+#endif
 
 /** A SQLite ([http://sqlite.org/](http://sqlite.org/)) Objective-C wrapper.
  
@@ -149,7 +152,7 @@
 
  */
 
-+ (id)databaseWithPath:(NSString*)inPath;
++ (instancetype)databaseWithPath:(NSString*)inPath;
 
 /** Initialize a `FMDatabase` object.
  
@@ -177,7 +180,7 @@
 
  */
 
-- (id)initWithPath:(NSString*)inPath;
+- (instancetype)initWithPath:(NSString*)inPath;
 
 
 ///-----------------------------------
