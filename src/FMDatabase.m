@@ -163,8 +163,8 @@
 
 - (void)clearCachedStatements {
     
-    for (FMStatement *cachedStmt in [_cachedStatements objectEnumerator]) {
-        [cachedStmt close];
+    for (NSMutableSet *statements in [_cachedStatements objectEnumerator]) {
+        [statements makeObjectsPerformSelector:@selector(close)];
     }
     
     [_cachedStatements removeAllObjects];
@@ -195,20 +195,34 @@
 }
 
 - (FMStatement*)cachedStatementForQuery:(NSString*)query {
-    return [_cachedStatements objectForKey:query];
+    
+    NSMutableSet* statements = [_cachedStatements objectForKey:query];
+    
+    return [[statements objectsPassingTest:^BOOL(FMStatement* statement, BOOL *stop) {
+        
+        *stop = ![statement inUse];
+        return *stop;
+        
+    }] anyObject];
 }
+
 
 - (void)setCachedStatement:(FMStatement*)statement forQuery:(NSString*)query {
     
     query = [query copy]; // in case we got handed in a mutable string...
-    
     [statement setQuery:query];
     
-    [_cachedStatements setObject:statement forKey:query];
+    NSMutableSet* statements = [_cachedStatements objectForKey:query];
+    if (!statements) {
+        statements = [NSMutableSet set];
+    }
+    
+    [statements addObject:statement];
+    
+    [_cachedStatements setObject:statements forKey:query];
     
     FMDBRelease(query);
 }
-
 
 - (BOOL)rekey:(NSString*)key {
     NSData *keyData = [NSData dataWithBytes:(void *)[key UTF8String] length:(NSUInteger)strlen([key UTF8String])];
@@ -1081,11 +1095,17 @@
 
 #if SQLITE_VERSION_NUMBER >= 3007000
 
+static NSString *FMEscapeSavePointName(NSString *savepointName) {
+    return [savepointName stringByReplacingOccurrencesOfString:@"'" withString:@"''"];
+}
+
 - (BOOL)startSavePointWithName:(NSString*)name error:(NSError**)outErr {
     
     NSParameterAssert(name);
     
-    if (![self executeUpdate:@"savepoint '?';", name]) {
+    NSString *sql = [NSString stringWithFormat:@"savepoint '%@';", FMEscapeSavePointName(name)];
+    
+    if (![self executeUpdate:sql]) {
 
         if (outErr) {
             *outErr = [self lastError];
@@ -1101,7 +1121,8 @@
     
     NSParameterAssert(name);
     
-    BOOL worked = [self executeUpdate:@"release savepoint '?';", name];
+    NSString *sql = [NSString stringWithFormat:@"release savepoint '%@';", FMEscapeSavePointName(name)];
+    BOOL worked = [self executeUpdate:sql];
     
     if (!worked && outErr) {
         *outErr = [self lastError];
@@ -1114,7 +1135,8 @@
     
     NSParameterAssert(name);
     
-    BOOL worked = [self executeUpdate:@"rollback transaction to savepoint '?';", name];
+    NSString *sql = [NSString stringWithFormat:@"rollback transaction to savepoint '%@';", FMEscapeSavePointName(name)];
+    BOOL worked = [self executeUpdate:sql];
     
     if (!worked && outErr) {
         *outErr = [self lastError];
@@ -1139,11 +1161,10 @@
     block(&shouldRollback);
     
     if (shouldRollback) {
+        // We need to rollback and release this savepoint to remove it
         [self rollbackToSavePointWithName:name error:&err];
     }
-    else {
-        [self releaseSavePointWithName:name error:&err];
-    }
+    [self releaseSavePointWithName:name error:&err];
     
     return err;
 }
@@ -1205,6 +1226,7 @@ void FMDBBlockSQLiteCallBackFunction(sqlite3_context *context, int argc, sqlite3
 @synthesize statement=_statement;
 @synthesize query=_query;
 @synthesize useCount=_useCount;
+@synthesize inUse=_inUse;
 
 - (void)finalize {
     [self close];
@@ -1224,12 +1246,16 @@ void FMDBBlockSQLiteCallBackFunction(sqlite3_context *context, int argc, sqlite3
         sqlite3_finalize(_statement);
         _statement = 0x00;
     }
+    
+    _inUse = NO;
 }
 
 - (void)reset {
     if (_statement) {
         sqlite3_reset(_statement);
     }
+    
+    _inUse = NO;
 }
 
 - (NSString*)description {
