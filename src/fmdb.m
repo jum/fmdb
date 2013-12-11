@@ -343,7 +343,7 @@ int main (int argc, const char * argv[]) {
     
     // test the busy rety timeout schtuff.
     
-    [db setBusyRetryTimeout:500];
+    [db setBusyTimeout:5];
     
     FMDatabase *newDb = [FMDatabase databaseWithPath:dbPath];
     [newDb open];
@@ -1375,6 +1375,20 @@ void testPool(NSString *dbPath) {
         });
         
         NSLog(@"Number of open databases after crazy gcd stuff: %ld", [dbPool countOfOpenDatabases]);
+    }
+    
+	FMDatabasePool *dbPool2 = [FMDatabasePool databasePoolWithPath:dbPath flags:SQLITE_OPEN_READONLY];
+    
+    FMDBQuickCheck(dbPool2);
+    {
+        [dbPool2 inDatabase:^(FMDatabase *db2) {
+            FMResultSet *rs1 = [db2 executeQuery:@"SELECT * FROM test"];
+            FMDBQuickCheck(rs1 != nil);
+            [rs1 close];
+            
+            BOOL ok = [db2 executeUpdate:@"insert into easy values (?)", [NSNumber numberWithInt:3]];
+            FMDBQuickCheck(!ok);
+        }];
     }
     
     
