@@ -101,8 +101,11 @@
     
     __block FMDatabase *db;
     
+    
     [self executeLocked:^() {
         db = [_databaseInPool lastObject];
+        
+        BOOL shouldNotifyDelegate = NO;
         
         if (db) {
             [_databaseOutPool addObject:db];
@@ -120,14 +123,16 @@
             }
             
             db = [FMDatabase databaseWithPath:_path];
+            shouldNotifyDelegate = YES;
         }
         
         //This ensures that the db is opened before returning
 #if SQLITE_VERSION_NUMBER >= 3005000
-        if ([db openWithFlags:_openFlags]) {
+        BOOL success = [db openWithFlags:_openFlags];
 #else
-        if ([db open]) {
+        BOOL success = [db open];
 #endif
+        if (success) {
             if ([_delegate respondsToSelector:@selector(databasePool:shouldAddDatabaseToPool:)] && ![_delegate databasePool:self shouldAddDatabaseToPool:db]) {
                 [db close];
                 db = 0x00;
@@ -136,6 +141,10 @@
                 //It should not get added in the pool twice if lastObject was found
                 if (![_databaseOutPool containsObject:db]) {
                     [_databaseOutPool addObject:db];
+                    
+                    if (shouldNotifyDelegate && [_delegate respondsToSelector:@selector(databasePool:didAddDatabase:)]) {
+                        [_delegate databasePool:self didAddDatabase:db];
+                    }
                 }
             }
         }
